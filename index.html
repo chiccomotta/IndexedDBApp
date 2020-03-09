@@ -1,0 +1,218 @@
+<html>
+  <body>
+    <h1>Hello IndexedDB</h1>
+
+    <button onclick="javascript:GetUsers()">Get Users</button>
+    <button onclick="javascript:GetProducts()">Get Products</button>
+
+    <script>
+      const setState = msg => {
+        console.error(msg)
+      }
+
+      const DB_NAME = "wldb"
+      const DB_VERSION = 1
+      const USERS_STORE = "UsersStore"
+      const USERS_STORE_KEY = "USERS"
+      const PRODUCTS_STORE = "ProductsStore"
+      const PRODUCTS_STORE_KEY = "PRODUCTS"
+
+      // Initialize IndexedDB
+      ;(function(notify) {
+        //check for support
+        if (!("indexedDB" in window)) {
+          notify("This browser doesn't support IndexedDB")
+          return
+        }
+
+        // Apriamo o creiamo il DB
+        var request = window.indexedDB.open(DB_NAME, DB_VERSION)
+
+        // Gestione errore apertura/creazione DB
+        request.onerror = function(event) {
+          notify(event.target.error)
+        }
+
+        // This handler is called when a new version of the database is created, either
+        // when one has not been created before or when a new version number is submitted by calling
+        // window.indexedDB.open(). This handler is only supported in recent browsers.
+        // Gestione upgrade DB
+        request.onupgradeneeded = event => {
+          console.log("Starting DB objectStores creation")
+
+          // reference to DB
+          var db = event.target.result
+
+          // Creo l'objectStore degli utenti se non esiste già
+          if (!db.objectStoreNames.contains(USERS_STORE)) {
+            var objectStore = db.createObjectStore(USERS_STORE)
+
+            // Use transaction oncomplete to make sure the objectStore creation is
+            // finished before adding data into it.
+            objectStore.transaction.oncomplete = event => {
+              console.log("objectStore created")
+            }
+
+            objectStore.onerror = event => {
+              notify(event.target.errorCode)
+            }
+          }
+
+          // Creo l'objectStore dei prodotti se non esiste già
+          if (!db.objectStoreNames.contains(PRODUCTS_STORE)) {
+            var objectStore = db.createObjectStore(PRODUCTS_STORE)
+
+            // Use transaction oncomplete to make sure the objectStore creation is
+            // finished before adding data into it.
+            objectStore.transaction.oncomplete = event => {
+              console.log(`${PRODUCTS_STORE} created`)
+            }
+
+            objectStore.onerror = event => {
+              notify(event.target.errorCode)
+            }
+          }
+        }
+
+        // Gestione apertura/creazione DB ok
+        request.onsuccess = async event => {
+          console.log("Opened DB successfully")
+          var db = request.result
+
+          // Error handler globale
+          db.onerror = event => {
+            notify(event.target.error)
+          }
+
+          // fetch API per utenti e prodotti
+          let users = await fetchUsers()
+          let products = await fetchProducts()
+          console.log("users", users)
+          console.log("products", products)
+
+          // Definisco quali objectStores usare nella transazione
+          var transaction = db.transaction([USERS_STORE, PRODUCTS_STORE], "readwrite")
+
+          // Utilizzo l'objectStore di nome UsersStore
+          var objectStore = transaction.objectStore(USERS_STORE)
+
+          // Svuoto l'objectStore
+          objectStore.clear().onsuccess = event => {
+            console.log(`${USERS_STORE} cleared`)
+          }
+
+          objectStore.add(users, USERS_STORE_KEY).onsuccess = event => {
+            console.log(`Users inserted successfully in ${USERS_STORE}`)
+          }
+
+          // Utilizzo l'objectStore di nome ProductStore
+          var productStore = transaction.objectStore(PRODUCTS_STORE)
+
+          // Svuoto l'objectStore
+          productStore.clear().onsuccess = event => {
+            console.log(`${PRODUCTS_STORE} cleared`)
+          }
+
+          // Aggiungo i prodotti
+          productStore.add(products, PRODUCTS_STORE_KEY).onsuccess = event => {
+            console.log(`Products inserted successfully in ${PRODUCTS_STORE}`)
+          }
+
+          // All transaction OK
+          transaction.oncomplete = event => {
+            console.log("Transaction completed successfully")
+          }
+
+          // Trasaction error
+          transaction.onerror = event => {
+            notify(event.target.error)
+          }
+        }
+      })(setState)
+
+      const fetchUsers = async () => {
+        let request = await fetch("/users.json")
+        let json = await request.json()
+        return json
+      }
+
+      const fetchProducts = async () => {
+        let request = await fetch("/products.json")
+        let json = await request.json()
+        return json
+      }
+
+      // Funzioni di recupero dati da IndexedDB
+      function GetUsers() {
+        // Let us open our database
+        var request = window.indexedDB.open(DB_NAME, 1)
+
+        request.onsuccess = function(event) {
+          var db = request.result
+
+          // Error handler globale
+          db.onerror = function(event) {
+            notify(event.target.error)
+          }
+
+          var transaction = db.transaction([USERS_STORE], "readonly")
+          var store = transaction.objectStore(USERS_STORE)
+
+          // prendo il record con chiave specifica
+          var objUsers = store.get(USERS_STORE_KEY)
+
+          objUsers.onerror = function(event) {
+            notify(event.target.error)
+          }
+
+          objUsers.onsuccess = function(event) {
+            // Do something with the request.result!
+            var users = objUsers.result.users
+            var str = ""
+            users.forEach(element => {
+              str += element.name + "; "
+            })
+
+            alert(str)
+          }
+        }
+      }
+
+      // Funzioni di recupero dati da IndexedDB
+      function GetProducts() {
+        // Let us open our database
+        var request = window.indexedDB.open(DB_NAME, 1)
+
+        request.onsuccess = function(event) {
+          var db = request.result
+
+          // Error handler globale
+          db.onerror = function(event) {
+            notify(event.target.error)
+          }
+
+          var transaction = db.transaction([PRODUCTS_STORE], "readonly")
+          var store = transaction.objectStore(PRODUCTS_STORE)
+
+          // prendo il record con chiave specifica
+          var obj = store.get(PRODUCTS_STORE_KEY)
+
+          obj.onerror = function(event) {
+            notify(event.target.error)
+          }
+
+          obj.onsuccess = function(event) {
+            // Do something with the request.result!
+            var users = obj.result.products
+            var str = ""
+            users.forEach(element => {
+              str += element.name + "; "
+            })
+
+            alert(str)
+          }
+        }
+      }
+    </script>
+  </body>
+</html>
